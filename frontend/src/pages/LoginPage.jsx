@@ -19,9 +19,9 @@ function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
-  const [selectedRole, setSelectedRole] = useState('Admin');
-  const [email, setEmail] = useState(demoAccounts.Admin.email);
-  const [password, setPassword] = useState(demoAccounts.Admin.password);
+  const [selectedRole, setSelectedRole] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -77,7 +77,7 @@ function LoginPage() {
         <section className="rounded-md border border-slate-200 bg-white p-6 shadow-panel">
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-slate-950">Sign in</h2>
-            <p className="mt-1 text-sm text-slate-500">Choose a demo profile or enter registered credentials.</p>
+            <p className="mt-1 text-sm text-slate-500">Enter registered credentials or choose a demo profile.</p>
           </div>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <label className="block">
