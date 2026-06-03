@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const cors = require('cors');
 const express = require('express');
+const adminOrderRoutes = require('./routes/admin.orders.routes');
 const adminProductRoutes = require('./routes/admin.products.routes');
 const authRoutes = require('./routes/auth.routes');
 const healthRoutes = require('./routes/health.routes');
@@ -38,6 +39,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/products', adminProductRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);

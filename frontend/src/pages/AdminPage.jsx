@@ -12,7 +12,6 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import AppNav from '../components/AppNav.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { incomingOrders } from '../data/mockData.js';
 import { apiRequest } from '../lib/api.js';
 
 const emptyForm = {
@@ -49,11 +48,13 @@ function stockStatus(product) {
 function AdminPage() {
   const { token } = useAuth();
   const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState(emptyForm);
   const [editingProductId, setEditingProductId] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -79,8 +80,26 @@ function AdminPage() {
     }
   }
 
+  async function loadOrders() {
+    setIsOrdersLoading(true);
+    setError('');
+
+    try {
+      const data = await apiRequest('/api/admin/orders', {
+        headers: authHeaders
+      });
+
+      setOrders(data.orders);
+    } catch (apiError) {
+      setError(apiError.message);
+    } finally {
+      setIsOrdersLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadProducts('');
+    loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -164,6 +183,22 @@ function AdminPage() {
     await loadProducts(search);
   }
 
+  async function updateOrderStatus(orderId, status) {
+    setError('');
+
+    try {
+      await apiRequest(`/api/admin/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ status })
+      });
+
+      await Promise.all([loadOrders(), loadProducts(search)]);
+    } catch (apiError) {
+      setError(apiError.message);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-100">
       <AppNav />
@@ -186,7 +221,10 @@ function AdminPage() {
             </form>
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              onClick={() => loadProducts(search)}
+              onClick={() => {
+                loadProducts(search);
+                loadOrders();
+              }}
               type="button"
             >
               <SlidersHorizontal size={17} aria-hidden="true" />
@@ -384,36 +422,73 @@ function AdminPage() {
                 <ClipboardList size={19} className="text-teal-700" aria-hidden="true" />
                 <h2 className="font-semibold text-slate-950">Incoming orders</h2>
               </div>
-              <span className="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Queue</span>
+              <span className="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">{orders.length} orders</span>
             </div>
             <div className="divide-y divide-slate-200">
-              {incomingOrders.map((order) => (
+              {isOrdersLoading && (
+                <div className="p-4 text-sm text-slate-500">Loading incoming orders...</div>
+              )}
+              {!isOrdersLoading && orders.length === 0 && (
+                <div className="p-4 text-sm text-slate-500">No incoming orders yet.</div>
+              )}
+              {!isOrdersLoading && orders.map((order) => (
                 <article key={order.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-slate-950">{order.id}</p>
-                      <p className="mt-1 text-sm text-slate-500">{order.buyer} - {order.date}</p>
+                      <p className="font-semibold text-slate-950">{order.id.slice(0, 8)}</p>
+                      <p className="mt-1 text-sm text-slate-500">{order.userEmail} - {new Date(order.createdAt).toLocaleDateString('en-IN')}</p>
                     </div>
                     <span className="rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{order.status}</span>
                   </div>
-                  <div className="mt-4 rounded-md bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-950">{order.item}</p>
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600">
-                      <div>
-                        <p className="text-slate-500">Requested</p>
-                        <p className="mt-1 font-medium text-slate-900">{order.requested}</p>
+                  <div className="mt-4 space-y-3">
+                    {order.items.map((item) => (
+                      <div key={item.id} className="rounded-md bg-slate-50 p-3">
+                        <p className="text-sm font-semibold text-slate-950">{item.productName}</p>
+                        <p className="mt-1 font-mono text-xs text-slate-500">{item.sku}</p>
+                        <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600">
+                          <div>
+                            <p className="text-slate-500">Requested</p>
+                            <p className="mt-1 font-medium text-slate-900">
+                              {Number(item.requestedQuantity).toLocaleString('en-IN')} {item.requestedUnit}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Converted</p>
+                            <p className="mt-1 font-medium text-slate-900">
+                              {Number(item.convertedQuantity).toLocaleString('en-IN')} {item.baseUnit}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Rate</p>
+                            <p className="mt-1 font-medium text-slate-900">{formatInr(item.unitPriceAtOrder)} / {item.baseUnit}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Line total</p>
+                            <p className="mt-1 font-medium text-slate-900">{formatInr(item.lineTotal)}</p>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-slate-500">Converted</p>
-                        <p className="mt-1 font-medium text-slate-900">{order.converted}</p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                   <div className="mt-4 flex items-center justify-between">
-                    <p className="text-base font-semibold text-slate-950">{formatInr(order.amount)}</p>
+                    <p className="text-base font-semibold text-slate-950">{formatInr(order.totalAmount)}</p>
                     <div className="flex gap-2">
-                      <button className="h-9 rounded-md border border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-700" type="button">Reject</button>
-                      <button className="h-9 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white" type="button">Approve</button>
+                      <button
+                        className="h-9 rounded-md border border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={order.status === 'Rejected'}
+                        onClick={() => updateOrderStatus(order.id, 'Rejected')}
+                        type="button"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        className="h-9 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={order.status === 'Approved'}
+                        onClick={() => updateOrderStatus(order.id, 'Approved')}
+                        type="button"
+                      >
+                        Approve
+                      </button>
                     </div>
                   </div>
                 </article>
