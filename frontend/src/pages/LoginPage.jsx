@@ -1,7 +1,55 @@
 import { Lock, Mail, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AppNav from '../components/AppNav.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
+
+const demoAccounts = {
+  Admin: {
+    email: 'admin@yourmedstore.local',
+    password: 'admin123'
+  },
+  User: {
+    email: 'user@yourmedstore.local',
+    password: 'user123'
+  }
+};
 
 function LoginPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+  const [selectedRole, setSelectedRole] = useState('Admin');
+  const [email, setEmail] = useState(demoAccounts.Admin.email);
+  const [password, setPassword] = useState(demoAccounts.Admin.password);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function selectDemoRole(role) {
+    setSelectedRole(role);
+    setEmail(demoAccounts[role].email);
+    setPassword(demoAccounts[role].password);
+    setError('');
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const session = await login(email, password);
+      const requestedPath = location.state?.from?.pathname;
+      const fallbackPath = session.user.role === 'Admin' ? '/admin' : '/marketplace';
+
+      navigate(requestedPath || fallbackPath, { replace: true });
+    } catch (apiError) {
+      setError(apiError.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-100">
       <AppNav />
@@ -29,17 +77,17 @@ function LoginPage() {
         <section className="rounded-md border border-slate-200 bg-white p-6 shadow-panel">
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-slate-950">Sign in</h2>
-            <p className="mt-1 text-sm text-slate-500">Use the role selector after authentication is added.</p>
+            <p className="mt-1 text-sm text-slate-500">Choose a demo profile or enter registered credentials.</p>
           </div>
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-slate-700">Email</span>
               <span className="relative block">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
                   type="email"
-                  value="admin@yourmedstore.local"
-                  readOnly
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                   className="h-11 w-full rounded-md border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
                 />
               </span>
@@ -50,24 +98,45 @@ function LoginPage() {
                 <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
                   type="password"
-                  value="password"
-                  readOnly
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
                   className="h-11 w-full rounded-md border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-100"
                 />
               </span>
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="rounded-md border border-slate-300 bg-slate-50 p-3 text-sm font-medium text-slate-700">
-                <input className="mr-2 accent-teal-700" type="radio" name="role" defaultChecked />
+                <input
+                  checked={selectedRole === 'Admin'}
+                  className="mr-2 accent-teal-700"
+                  name="role"
+                  onChange={() => selectDemoRole('Admin')}
+                  type="radio"
+                />
                 Admin
               </label>
               <label className="rounded-md border border-slate-300 bg-slate-50 p-3 text-sm font-medium text-slate-700">
-                <input className="mr-2 accent-teal-700" type="radio" name="role" />
+                <input
+                  checked={selectedRole === 'User'}
+                  className="mr-2 accent-teal-700"
+                  name="role"
+                  onChange={() => selectDemoRole('User')}
+                  type="radio"
+                />
                 User
               </label>
             </div>
-            <button className="h-11 w-full rounded-md bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800">
-              Sign in
+            {error && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                {error}
+              </div>
+            )}
+            <button
+              className="h-11 w-full rounded-md bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              disabled={isSubmitting}
+              type="submit"
+            >
+              {isSubmitting ? 'Signing in' : 'Sign in'}
             </button>
           </form>
         </section>

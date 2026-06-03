@@ -2,9 +2,12 @@ BEGIN;
 
 INSERT INTO users (email, password_hash, role)
 VALUES
-  ('admin@yourmedstore.local', 'password-hash-will-be-generated-in-step-3', 'Admin'),
-  ('user@yourmedstore.local', 'password-hash-will-be-generated-in-step-3', 'User')
-ON CONFLICT (email) DO NOTHING;
+  ('admin@yourmedstore.local', '$2b$10$bvqoAWauiQIOIrZS2S5VquctfH19q.pgW3IJU6ov.bIxWAwYkliXm', 'Admin'),
+  ('user@yourmedstore.local', '$2b$10$GPYVOucMcgsBKC0JN5N6fePpv7WrecC9gBtgVyUEyr0U7lDrxHbO2', 'User')
+ON CONFLICT (email) DO UPDATE SET
+  password_hash = EXCLUDED.password_hash,
+  role = EXCLUDED.role,
+  updated_at = NOW();
 
 INSERT INTO products (name, sku, description, base_unit, base_price_per_unit, current_stock)
 VALUES
