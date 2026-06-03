@@ -2,24 +2,11 @@ const express = require('express');
 const pool = require('../config/db');
 const { authenticateToken, requireRole } = require('../middleware/auth.middleware');
 const { supportedBaseUnits } = require('../utils/conversionEngine');
+const { mapProduct } = require('../utils/productMapper');
 
 const router = express.Router();
 
 router.use(authenticateToken, requireRole('Admin'));
-
-function mapProduct(row) {
-  return {
-    id: row.id,
-    name: row.name,
-    sku: row.sku,
-    description: row.description,
-    baseUnit: row.base_unit,
-    basePricePerUnit: row.base_price_per_unit,
-    currentStock: row.current_stock,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  };
-}
 
 function normalizeProductPayload(body) {
   const name = body.name?.trim();

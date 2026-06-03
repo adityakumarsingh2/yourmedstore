@@ -5,6 +5,8 @@ const express = require('express');
 const adminProductRoutes = require('./routes/admin.products.routes');
 const authRoutes = require('./routes/auth.routes');
 const healthRoutes = require('./routes/health.routes');
+const orderRoutes = require('./routes/orders.routes');
+const productRoutes = require('./routes/products.routes');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -37,6 +39,8 @@ app.get('/', (req, res) => {
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin/products', adminProductRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
