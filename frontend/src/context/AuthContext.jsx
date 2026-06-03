@@ -1,45 +1,59 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../lib/api.js';
 
 const AuthContext = createContext(null);
-const storageKey = 'yourMedStoreAuth';
-
-function readStoredSession() {
-  try {
-    const rawSession = localStorage.getItem(storageKey);
-    return rawSession ? JSON.parse(rawSession) : { token: null, user: null };
-  } catch (error) {
-    localStorage.removeItem(storageKey);
-    return { token: null, user: null };
-  }
-}
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(readStoredSession);
+  const [user, setUser] = useState(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    apiRequest('/api/auth/me')
+      .then((data) => {
+        if (isMounted) {
+          setUser(data.user);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setUser(null);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsInitializing(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   async function login(email, password) {
-    const nextSession = await apiRequest('/api/auth/login', {
+    const session = await apiRequest('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });
 
-    localStorage.setItem(storageKey, JSON.stringify(nextSession));
-    setSession(nextSession);
-    return nextSession;
+    setUser(session.user);
+    return session;
   }
 
-  function logout() {
-    localStorage.removeItem(storageKey);
-    setSession({ token: null, user: null });
+  async function logout() {
+    await apiRequest('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    setUser(null);
   }
 
   const value = useMemo(() => ({
-    isAuthenticated: Boolean(session.token),
-    token: session.token,
-    user: session.user,
+    isAuthenticated: Boolean(user),
+    isInitializing,
+    user,
     login,
     logout
-  }), [session]);
+  }), [isInitializing, user]);
 
   return (
     <AuthContext.Provider value={value}>

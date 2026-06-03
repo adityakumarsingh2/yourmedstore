@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const express = require('express');
 const adminOrderRoutes = require('./routes/admin.orders.routes');
 const adminProductRoutes = require('./routes/admin.products.routes');
@@ -28,6 +29,7 @@ app.use(cors({
   credentials: true
 }));
 
+app.use(cookieParser());
 app.use(express.json());
 
 app.get('/', (req, res) => {

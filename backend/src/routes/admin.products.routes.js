@@ -48,23 +48,32 @@ function normalizeProductPayload(body) {
 
 router.get('/', async (req, res) => {
   const search = req.query.search?.trim();
+  const page = Math.max(Number.parseInt(req.query.page || '1', 10), 1);
+  const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '20', 10), 1), 100);
+  const offset = (page - 1) * limit;
   const params = [];
   let whereClause = '';
 
   if (search) {
-    params.push(`%${search}%`);
-    whereClause = 'WHERE name ILIKE $1 OR sku ILIKE $1 OR description ILIKE $1';
+    params.push(search);
+    whereClause = `WHERE (
+      to_tsvector('english', coalesce(name, '') || ' ' || coalesce(description, '')) @@ websearch_to_tsquery('english', $1)
+      OR sku ILIKE '%' || $1 || '%'
+    )`;
   }
 
+  params.push(limit, offset);
   const result = await pool.query(
     `SELECT id, name, sku, description, base_unit, base_price_per_unit, current_stock, created_at, updated_at
      FROM products
      ${whereClause}
-     ORDER BY name ASC`,
+     ORDER BY name ASC
+     LIMIT $${params.length - 1}
+     OFFSET $${params.length}`,
     params
   );
 
-  res.json({ products: result.rows.map(mapProduct) });
+  res.json({ products: result.rows.map(mapProduct), page, limit });
 });
 
 router.post('/', async (req, res) => {
@@ -94,10 +103,90 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.post('/:id/adjust-stock', async (req, res) => {
+  const quantityDelta = Number(req.body.quantityDelta);
+  const reason = req.body.reason?.trim();
+
+  if (!Number.isFinite(quantityDelta) || quantityDelta === 0) {
+    return res.status(400).json({ message: 'Quantity delta must be a non-zero number.' });
+  }
+
+  if (!reason) {
+    return res.status(400).json({ message: 'Adjustment reason is required.' });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const productResult = await client.query(
+      `SELECT id, current_stock
+       FROM products
+       WHERE id = $1
+       FOR UPDATE`,
+      [req.params.id]
+    );
+
+    const product = productResult.rows[0];
+
+    if (!product) {
+      throw new Error('Product not found.');
+    }
+
+    const newStock = Number(product.current_stock) + quantityDelta;
+
+    if (newStock < 0) {
+      throw new Error('Adjustment would make stock negative.');
+    }
+
+    const updatedResult = await client.query(
+      `UPDATE products
+       SET current_stock = $1
+       WHERE id = $2
+       RETURNING id, name, sku, description, base_unit, base_price_per_unit, current_stock, created_at, updated_at`,
+      [newStock.toFixed(8), product.id]
+    );
+
+    await client.query(
+      `INSERT INTO stock_adjustment_history (
+         product_id, adjusted_by, adjustment_type, quantity_delta, previous_stock, new_stock, reason
+       )
+       VALUES ($1, $2, 'AdminAdjustment', $3, $4, $5, $6)`,
+      [product.id, req.user.id, quantityDelta.toFixed(8), product.current_stock, newStock.toFixed(8), reason]
+    );
+
+    await client.query('COMMIT');
+    return res.json({ product: mapProduct(updatedResult.rows[0]) });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(400).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 router.put('/:id', async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const product = normalizeProductPayload(req.body);
-    const result = await pool.query(
+    await client.query('BEGIN');
+    const currentResult = await client.query(
+      `SELECT current_stock
+       FROM products
+       WHERE id = $1
+       FOR UPDATE`,
+      [req.params.id]
+    );
+
+    if (!currentResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Product not found.' });
+    }
+
+    const previousStock = Number(currentResult.rows[0].current_stock);
+    const nextStock = Number(product.currentStock);
+    const result = await client.query(
       `UPDATE products
        SET name = $1,
            sku = $2,
@@ -118,17 +207,34 @@ router.put('/:id', async (req, res) => {
       ]
     );
 
-    if (!result.rows[0]) {
-      return res.status(404).json({ message: 'Product not found.' });
+    if (previousStock !== nextStock) {
+      await client.query(
+        `INSERT INTO stock_adjustment_history (
+           product_id, adjusted_by, adjustment_type, quantity_delta, previous_stock, new_stock, reason
+         )
+         VALUES ($1, $2, 'AdminAdjustment', $3, $4, $5, $6)`,
+        [
+          req.params.id,
+          req.user.id,
+          (nextStock - previousStock).toFixed(8),
+          previousStock.toFixed(8),
+          nextStock.toFixed(8),
+          'Stock changed from product edit form.'
+        ]
+      );
     }
 
+    await client.query('COMMIT');
     return res.json({ product: mapProduct(result.rows[0]) });
   } catch (error) {
+    await client.query('ROLLBACK');
     if (error.code === '23505') {
       return res.status(409).json({ message: 'A product with this SKU already exists.' });
     }
 
     return res.status(400).json({ message: error.message });
+  } finally {
+    client.release();
   }
 });
 

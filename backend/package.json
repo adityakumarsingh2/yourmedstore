@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "db:migrate": "node scripts/run-sql.js db/migrations/001_init_schema.sql",
+    "db:migrate": "node scripts/run-sql.js db/migrations/001_init_schema.sql && node scripts/run-sql.js db/migrations/002_security_audit_performance.sql",
+    "db:migrate:base": "node scripts/run-sql.js db/migrations/001_init_schema.sql",
+    "db:migrate:security": "node scripts/run-sql.js db/migrations/002_security_audit_performance.sql",
     "db:seed": "node scripts/run-sql.js db/seeds/001_sample_chemicals.sql"
   },
   "keywords": [
@@ -18,9 +20,12 @@
   "license": "MIT",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "decimal.js": "^10.6.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.5.2",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.13.1"
   },

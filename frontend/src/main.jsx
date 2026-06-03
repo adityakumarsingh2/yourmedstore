@@ -16,7 +16,14 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/login" replace /> },
       { path: 'login', element: <LoginPage /> },
-      { path: 'marketplace', element: <MarketplacePage /> },
+      {
+        path: 'marketplace',
+        element: (
+          <ProtectedRoute allowedRoles={['Admin', 'User']}>
+            <MarketplacePage />
+          </ProtectedRoute>
+        )
+      },
       {
         path: 'admin',
         element: (

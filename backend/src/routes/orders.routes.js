@@ -1,4 +1,5 @@
 const express = require('express');
+const Decimal = require('decimal.js');
 const pool = require('../config/db');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { calculateLineTotal } = require('../utils/conversionEngine');
@@ -42,7 +43,7 @@ router.post('/', async (req, res) => {
 
     const order = orderResult.rows[0];
     const createdItems = [];
-    let totalAmount = 0;
+    let totalAmount = new Decimal(0);
 
     for (const item of items) {
       const productResult = await client.query(
@@ -66,15 +67,33 @@ router.post('/', async (req, res) => {
         basePricePerUnit: product.base_price_per_unit
       });
 
-      if (Number(calculation.convertedQuantity) > Number(product.current_stock)) {
+      if (new Decimal(calculation.convertedQuantity).gt(product.current_stock)) {
         throw new Error(`Insufficient stock for ${product.name}.`);
       }
 
+      const newStock = new Decimal(product.current_stock).minus(calculation.convertedQuantity).toFixed(8);
+
       await client.query(
         `UPDATE products
-         SET current_stock = current_stock - $1
+         SET current_stock = $1
          WHERE id = $2`,
-        [calculation.convertedQuantity, product.id]
+        [newStock, product.id]
+      );
+
+      await client.query(
+        `INSERT INTO stock_adjustment_history (
+           product_id, adjusted_by, adjustment_type, quantity_delta, previous_stock, new_stock, reason, reference_type, reference_id
+         )
+         VALUES ($1, $2, 'OrderReservation', $3, $4, $5, $6, 'Order', $7)`,
+        [
+          product.id,
+          req.user.id,
+          new Decimal(calculation.convertedQuantity).negated().toFixed(8),
+          product.current_stock,
+          newStock,
+          'Stock reserved during quotation checkout.',
+          order.id
+        ]
       );
 
       const orderItemResult = await client.query(
@@ -102,7 +121,7 @@ router.post('/', async (req, res) => {
         ]
       );
 
-      totalAmount += Number(calculation.lineTotal);
+      totalAmount = totalAmount.plus(calculation.lineTotal);
       createdItems.push({
         ...orderItemResult.rows[0],
         product_name: product.name

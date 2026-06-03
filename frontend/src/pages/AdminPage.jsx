@@ -46,7 +46,7 @@ function stockStatus(product) {
 }
 
 function AdminPage() {
-  const { token } = useAuth();
+  useAuth();
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState('');
@@ -58,9 +58,7 @@ function AdminPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const authHeaders = useMemo(() => ({
-    Authorization: `Bearer ${token}`
-  }), [token]);
+  const authHeaders = useMemo(() => ({}), []);
 
   async function loadProducts(nextSearch = search) {
     setIsLoading(true);
@@ -351,7 +349,7 @@ function AdminPage() {
               </span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-left text-sm">
+              <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Product</th>
@@ -402,7 +400,11 @@ function AdminPage() {
                           <button
                             aria-label={`Delete ${product.name}`}
                             className="grid h-9 w-9 place-items-center rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                            onClick={() => handleDelete(product.id)}
+                            onClick={() => {
+                              if (window.confirm(`Delete ${product.name}?`)) {
+                                handleDelete(product.id);
+                              }
+                            }}
                             type="button"
                           >
                             <Trash2 size={16} aria-hidden="true" />

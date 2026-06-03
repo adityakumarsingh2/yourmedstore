@@ -46,7 +46,7 @@ function stockStatus(product) {
 }
 
 function MarketplacePage() {
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
   const [inStockOnly, setInStockOnly] = useState(true);
@@ -185,14 +185,22 @@ function MarketplacePage() {
       return;
     }
 
+    const invalidItem = cartItems.find((item) => {
+      const quantity = Number(item.quantity);
+      const convertedQuantity = quantity * conversionFactorsToBase[item.unit];
+      return !Number.isFinite(quantity) || quantity <= 0 || convertedQuantity > Number(item.currentStock);
+    });
+
+    if (invalidItem) {
+      setError(`Check quantity and stock for ${invalidItem.name}.`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const data = await apiRequest('/api/orders', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
         body: JSON.stringify({
           items: cartItems.map((item) => ({
             productId: item.productId,
@@ -220,7 +228,7 @@ function MarketplacePage() {
   return (
     <div className="min-h-screen bg-slate-100 pb-40">
       <AppNav />
-      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[280px_1fr] lg:px-8">
+      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-8">
         <aside className="h-fit rounded-md border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h1 className="text-lg font-semibold text-slate-950">Marketplace</h1>
@@ -362,7 +370,7 @@ function MarketplacePage() {
         </section>
       </main>
 
-      <aside className="fixed bottom-4 left-4 right-4 z-30 mx-auto max-w-5xl rounded-md border border-slate-200 bg-white p-4 shadow-panel">
+      <aside className="fixed bottom-4 left-3 right-3 z-30 mx-auto max-w-[calc(100vw-1.5rem)] rounded-md border border-slate-200 bg-white p-3 shadow-panel sm:left-4 sm:right-4 sm:max-w-5xl sm:p-4">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3">
@@ -398,7 +406,7 @@ function MarketplacePage() {
                 const lineTotal = calculateCartLine(item);
 
                 return (
-                  <div key={item.id} className="grid gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700 sm:grid-cols-[minmax(150px,1fr)_96px_82px_88px_32px] sm:items-center">
+                  <div key={item.id} className="grid w-full min-w-0 gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700 sm:grid-cols-[minmax(120px,1fr)_88px_76px_84px_32px] sm:items-center">
                     <span className="font-medium text-slate-950">{item.name}</span>
                     <input
                       className="h-8 rounded-md border border-slate-300 bg-white px-2 text-sm"

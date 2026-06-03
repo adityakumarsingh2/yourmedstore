@@ -24,9 +24,9 @@ const conversionFactorsToBase = {
 };
 
 function assertPositiveNumber(value, label) {
-  const numericValue = Number(value);
+  const numericValue = new Decimal(value);
 
-  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+  if (!numericValue.isFinite() || numericValue.lte(0)) {
     throw new Error(`${label} must be a positive number.`);
   }
 
@@ -34,9 +34,9 @@ function assertPositiveNumber(value, label) {
 }
 
 function assertNonNegativeNumber(value, label) {
-  const numericValue = Number(value);
+  const numericValue = new Decimal(value);
 
-  if (!Number.isFinite(numericValue) || numericValue < 0) {
+  if (!numericValue.isFinite() || numericValue.lt(0)) {
     throw new Error(`${label} must be a non-negative number.`);
   }
 
@@ -44,7 +44,7 @@ function assertNonNegativeNumber(value, label) {
 }
 
 function toFixedDecimal(value) {
-  return Number(value).toFixed(8);
+  return new Decimal(value).toFixed(8);
 }
 
 function getBaseUnitForRequestedUnit(requestedUnit) {
@@ -75,7 +75,7 @@ function convertToBaseQuantity(quantity, requestedUnit, baseUnit) {
   assertCompatibleUnits(requestedUnit, baseUnit);
 
   const numericQuantity = assertPositiveNumber(quantity, 'Quantity');
-  return toFixedDecimal(numericQuantity * conversionFactorsToBase[requestedUnit]);
+  return numericQuantity.mul(conversionFactorsToBase[requestedUnit]).toFixed(8);
 }
 
 function calculateLineTotal({ quantity, requestedUnit, baseUnit, basePricePerUnit }) {
@@ -88,7 +88,7 @@ function calculateLineTotal({ quantity, requestedUnit, baseUnit, basePricePerUni
     baseUnit,
     convertedQuantity,
     basePricePerUnit: toFixedDecimal(numericPrice),
-    lineTotal: toFixedDecimal(Number(convertedQuantity) * numericPrice)
+    lineTotal: new Decimal(convertedQuantity).mul(numericPrice).toFixed(8)
   };
 }
 
@@ -100,3 +100,4 @@ module.exports = {
   supportedBaseUnits,
   supportedRequestedUnits
 };
+const Decimal = require('decimal.js');
